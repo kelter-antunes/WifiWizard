@@ -43,7 +43,7 @@ public class WifiWizard extends CordovaPlugin {
     private static final String START_SCAN = "startScan";
     private static final String GET_SCAN_RESULTS = "getScanResults";
     private static final String GET_CONNECTED_SSID = "getConnectedSSID";
-    private static final String GET_CONNECTED_SSID = "getConnectedBSSID";
+    private static final String GET_CONNECTED_BSSID = "getConnectedBSSID";
     private static final String IS_WIFI_ENABLED = "isWifiEnabled";
     private static final String SET_WIFI_ENABLED = "setWifiEnabled";
     private static final String TAG = "WifiWizard";
