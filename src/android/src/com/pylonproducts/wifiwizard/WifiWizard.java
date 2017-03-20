@@ -4,7 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *      http://www.apache.org/licenses/LICENSE-2.0
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,22 +14,17 @@
  */
 package com.pylonproducts.wifiwizard;
 
+import android.Manifest;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.net.wifi.*;
+import android.util.Log;
 import org.apache.cordova.*;
-import java.util.List;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import android.net.NetworkInfo;
-import android.net.wifi.WifiManager;
-import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiEnterpriseConfig;
-import android.net.wifi.ScanResult;
-import android.net.wifi.WifiInfo;
-import android.net.wifi.SupplicantState;
-import android.content.Context;
-import android.util.Log;
+import java.util.List;
 
 
 public class WifiWizard extends CordovaPlugin {
@@ -43,10 +38,14 @@ public class WifiWizard extends CordovaPlugin {
     private static final String START_SCAN = "startScan";
     private static final String GET_SCAN_RESULTS = "getScanResults";
     private static final String GET_CONNECTED_SSID = "getConnectedSSID";
-    private static final String GET_CONNECTED_BSSID = "getConnectedBSSID";
     private static final String IS_WIFI_ENABLED = "isWifiEnabled";
     private static final String SET_WIFI_ENABLED = "setWifiEnabled";
     private static final String TAG = "WifiWizard";
+
+    private static final int PERMISSION_DENIED_ERROR = 20;
+    private static final int FINE_LOCATION_SEC = 0;
+
+    private JSONArray scanResultData;
 
     private WifiManager wifiManager;
     private CallbackContext callbackContext;
@@ -92,16 +91,20 @@ public class WifiWizard extends CordovaPlugin {
             return this.startScan(callbackContext);
         }
         else if(action.equals(GET_SCAN_RESULTS)) {
-            return this.getScanResults(callbackContext, data);
+            if(!PermissionHelper.hasPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+                scanResultData = data;
+                PermissionHelper.requestPermission(this, FINE_LOCATION_SEC, Manifest.permission.ACCESS_FINE_LOCATION);
+                Log.d(TAG, "Location permission not found, requesting from user");
+                return true;
+            }else{
+                return this.getScanResults(callbackContext, data);
+            }
         }
         else if(action.equals(DISCONNECT)) {
             return this.disconnect(callbackContext);
         }
         else if(action.equals(GET_CONNECTED_SSID)) {
             return this.getConnectedSSID(callbackContext);
-        }
-        else if(action.equals(GET_CONNECTED_BSSID)) {
-            return this.getConnectedBSSID(callbackContext);
         }
         else {
             callbackContext.error("Incorrect action parameter: " + action);
@@ -496,36 +499,6 @@ public class WifiWizard extends CordovaPlugin {
     }
 
     /**
-     * This method retrieves the BSSID for the currently connected network
-     *
-     *    @param    callbackContext        A Cordova callback context
-     *    @return    true if BSSID found, false if not.
-    */
-    private boolean getConnectedBSSID(CallbackContext callbackContext){
-        if(!wifiManager.isWifiEnabled()){
-            callbackContext.error("Wifi is disabled");
-            return false;
-        }
-
-        WifiInfo info = wifiManager.getConnectionInfo();
-
-        if(info == null){
-            callbackContext.error("Unable to read wifi info");
-            return false;
-        }
-
-        String bssid = info.getBSSID();
-
-        if(bssid.isEmpty()){
-            callbackContext.error("BSSID is empty");
-            return false;
-        }
-
-        callbackContext.success(bssid);
-        return true;
-    }
-
-    /**
      * This method retrieves the current WiFi status
      *
      *    @param    callbackContext        A Cordova callback context
@@ -565,9 +538,9 @@ public class WifiWizard extends CordovaPlugin {
             Log.d(TAG, "WifiWizard: disconnectNetwork invalid data");
             return false;
         }
-
+        
         String status = "";
-
+        
         try {
             status = data.getString(0);
         }
@@ -576,11 +549,11 @@ public class WifiWizard extends CordovaPlugin {
             Log.d(TAG, e.getMessage());
             return false;
         }
-
+        
         if (wifiManager.setWifiEnabled(status.equals("true"))) {
             callbackContext.success();
             return true;
-        }
+        } 
         else {
             callbackContext.error("Cannot enable wifi");
             return false;
@@ -599,6 +572,24 @@ public class WifiWizard extends CordovaPlugin {
             callbackContext.error(e.getMessage());
         }
         return false;
+    }
+
+    public void onRequestPermissionResult(int requestCode, String[] permissions,
+                                          int[] grantResults) throws JSONException {
+        for (int r : grantResults) {
+            if (r == PackageManager.PERMISSION_DENIED) {
+                this.callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.ERROR, PERMISSION_DENIED_ERROR));
+                return;
+            }
+        }
+
+        switch (requestCode) {
+            case FINE_LOCATION_SEC:
+                Log.d(TAG, "Location permission granted, returning scan results");
+                this.getScanResults(callbackContext, scanResultData);
+                this.scanResultData = null;
+                break;
+        }
     }
 
 }
